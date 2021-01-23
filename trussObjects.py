@@ -82,10 +82,7 @@ class truss():
         return
         
     def calculateMass(self):
-        mass = 0
-        for element in self.elements:
-            mass += element.findMass()
-        self.mass = mass
+        self.mass = np.sum( [ element.findMass() for element in self.elements ] )
         return
     
     def checkStructuralFailure(self, U, FOS):
@@ -238,6 +235,9 @@ class element():
         self.D += dpp
         self.A = np.pi*(self.D/2)**2
         self.I = np.pi/4*(self.D/2)**4
+        if self.memberType == 1:
+            self.A = 2*self.A
+            self.I = 2*self.I
 
 
 

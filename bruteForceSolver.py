@@ -156,13 +156,13 @@ def printTimeEstimate(t2, counter, total):
     return t2
 
 
-def generateMembers(memberDict, d_step):
-    dpp = [d + (d_step*(10**-3)) for d in memberDict['D'] ]
-    diameters = dpp
-    areas = [ np.pi*( (d/2)**2 ) for d in diameters]
-    inertias = [ np.pi/4*( (d/2)**4 ) for d in diameters]
-    memberDictNew = { 'D': diameters, 'A':areas, 'I':inertias, 'E':memberDict['E'], 'S_uc':memberDict['S_uc'], 'rho':memberDict['rho'] }
-    return memberDictNew
+# def generateMembers(memberDict, d_step):
+#     dpp = [d + (d_step*(10**-3)) for d in memberDict['D'] ]
+#     diameters = dpp
+#     areas = [ np.pi*( (d/2)**2 ) for d in diameters]
+#     inertias = [ np.pi/4*( (d/2)**4 ) for d in diameters]
+#     memberDictNew = { 'D': diameters, 'A':areas, 'I':inertias, 'E':memberDict['E'], 'S_uc':memberDict['S_uc'], 'rho':memberDict['rho'] }
+#     return memberDictNew
 
 
 def listGenerator(minVal, maxVal, stepSize):
@@ -334,18 +334,21 @@ def createNodeandMemberObjects(n, globalStructure, w, L, wt, ht, FOS, E, S_uc, r
     F5 = P_lat*FOS
     
     #member section sizing initialisation - the lazy way
-    d1_S_uc = 2*( F1/S_uc*(1/np.pi) )**0.5
+    #two beams on the bottom compression member
+    d1_S_uc = 2*( F1/S_uc*(1/np.pi) / 2 )**0.5
     d2_S_uc = 2*( F2/S_uc*(1/np.pi) )**0.5
     d3_S_uc = 2*( F3/S_uc*(1/np.pi) )**0.5
     d4_S_uc = 2*( F4/S_uc*(1/np.pi) )**0.5
     d5_S_uc = 2*( F5/S_uc*(1/np.pi) )**0.5
     
-    d1_Buckle = 2*( F1*((l1*K)**2) / (0.85*E*(np.pi**3)/4) )**(1/4)
+    d1_Buckle = 2*( F1*((l1*K)**2) / (0.85 * E * 2*(np.pi**3)/4) )**(1/4)
     d2_Buckle = 2*( F2*((l2*K)**2) / (0.85*E*(np.pi**3)/4) )**(1/4)
     d3_Buckle = 2*( F3*((l3*K)**2) / (0.85*E*(np.pi**3)/4) )**(1/4)
     d4_Buckle = 2*( F4*((l4*K)**2) / (0.85*E*(np.pi**3)/4) )**(1/4)
     d5_Buckle = 2*( F5*((l5*K)**2) / (0.85*E*(np.pi**3)/4) )**(1/4)
     
+    #subtract a little bit from this to make sure that if the load estimates were conservative, a better soltuion can be found
+    #again a little fiddly
     d1 = max(d1_S_uc, d1_Buckle) - k2*d_step
     d2 = max(d2_S_uc, d2_Buckle) - k2*d_step
     d3 = max(d3_S_uc, d3_Buckle) - k2*d_step
@@ -358,6 +361,10 @@ def createNodeandMemberObjects(n, globalStructure, w, L, wt, ht, FOS, E, S_uc, r
     E = [E, E, E, E, E]
     S_uc = [S_uc, S_uc, S_uc, S_uc, S_uc ]
     rho = [rho,rho,rho,rho,rho]
+    
+    #account for double beam
+    areas[0] = 2*areas[0]
+    inertias[0] = 2*inertias[0]
     
     memberDict = { 'D': diameters, 'A':areas, 'I':inertias, 'E':E, 'S_uc':S_uc, 'rho':rho }
     
@@ -416,7 +423,7 @@ P = m_outrigger*k_dynm*k_crossbeam_Stiffness_Path_Factor*9.81*(10**3) #[N]
 #longitudinal/frontal impact load
 k_F_LT_h = 2.5 #- 2.5g's for main hull deceleration from 12215-7 global loads
 k_F_LT_o = 5.0 #- 5.0g's for outer hull deceleration F_LT from 12215-7 global loads
-P_lat = max( (1/2)*m_hull*k_F_LT_h*9.81*10**3, (1/2)*m_outrigger*k_F_LT_o*9.81*10**3) #[N]
+P_lat = max( (1/2)*m_hull*k_F_LT_h*10**3, (1/2)*m_outrigger*k_F_LT_o*10**3) #[N]
 #with this load, it's actually shared between the two crossbeams so it's a half unlike the first load case
 #may be slightly more on the crossbeam closer to where the impact was
 #-----------------------------------------------------------------------------
@@ -441,19 +448,22 @@ stepSizeVertical = 0.05
 maxTrussDeltaHeight = 0.5 #[m]
     
 #size of step for the diameters of the rod when iterating to find a structure that passes criteria
-d_step = 0.5*(10**-3) #size of the step [m] of the truss
+d_step = 0.25*(10**-3) #size of the step [m] of the truss
     
 #this is the number of sections to evaluate/number of segments in the truss
-sections = range(6, 7, 1)
+sections = range(6, 8, 1)
 
 #criteria, generally 12215 uses a FOS of 2 on everything
-FOS = 2.0
+#again very hacky, but using a higher FOS generally results in less callibration in the FEA 
+#where you model the truss as connected beams (moments transfer)
+#I was working on a 6DOF - beam style solver in the FEM solver module and you are welcome to add this
+FOS = 2.5
 criterion = {   
                 'maxDisplacement': 0.02*L, 
                 'FOS' : FOS
             }
 k = 10  #this is the number of iterations of the d_step done for each rod when trying to find suitable members for the global geometry to resolve criteria
-k2 = 2 #this is a reduction factor for the intial diameter guess on buckling, reason is that load estimates for initialisation are not ideal, but are close
+k2 = 5 #this is a reduction factor for the intial diameter guess on buckling, reason is that load estimates for initialisation are not ideal, but are close
 
 '''For more factors relating to global geo go to geo generate function
 made more sense to keep them in there'''
@@ -474,6 +484,10 @@ class solutionViewer():
     def view(self, i):
         self.solutions[i][1].plot(L)
         print('')
+        print('LOADS: [kN]')
+        print( 'Righting Force: ' + str( round(P/1000, 1) ) + ' [kN]')
+        print( 'Longitudindal Force: ' + str( round(P_lat/1000, 1) ) + ' [kN]' )
+        print('')
         print('MASS: [kg]')
         print( round(self.solutions[i][1].mass, 0) )
         nodes = []
@@ -486,14 +500,20 @@ class solutionViewer():
         print('DIAMETERS: [mm]')
         D = [round(1000*d, 1) for d in self.solutions[i][1].D ]
         print(D)
+        #find rectangular approximation for singular beam for double bottom primary beam
+        H = np.sqrt(np.pi/4*(D[0]**2))
+        B = 2*H
+        print('Rectangular Approximation to Bottom Beam: ')
+        print('width: ' + str( round(B, 1) ) +  ' Height: ' + str( round(H, 1) ) + ' [mm]')
+        
 
 #-----------------------------------------------------------------------------
 #Solution viewing
-sol = solutionViewer(ans)
+s = solutionViewer(ans)
 
 #just muck around in console with this command to view others
 i = 0
-sol.view(i)
+s.view(i)
 
 #-----------------------------------------------------------------------------
 
