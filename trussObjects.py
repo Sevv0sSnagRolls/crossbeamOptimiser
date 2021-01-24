@@ -195,7 +195,7 @@ class element():
                             [ 0, 0, 0, self.Cx, self.Cy, self.Cz] ] )
         self.u_dash = np.matmul(self.T, self.u)
         self.internalForce = self.E*self.A*(self.u_dash[1] - self.u_dash[0])/self.L
-        self.stress = self.internalForce/self.A*(10**-6)
+        self.stress = self.internalForce/self.A
         return
 
     def checkStructuralFailure(self, U, FOS):
@@ -220,8 +220,8 @@ class element():
     def eulerBuckle(self, FOS):
         K = 1.0 #assuming pin joints
         self.P_crit = 0.85*self.E*(np.pi**2)*self.I/( (self.L*K)**2 )
-        #multiply by -1 to get if it's in compression
-        if self.P_crit > -1*( FOS*self.internalForce ):
+        #get abs to get if it's in compression
+        if self.P_crit > abs( FOS*self.internalForce ):
             self.bucklingFailure = False
         else:
             self.bucklingFailure = True

@@ -137,11 +137,19 @@ def loadsAndSupports(P, P_lat, n):
     loadsCase3[-1]= [P*np.cos( (90-deg)*np.pi/180)/3, 0, P*np.cos(deg*np.pi/180)/3]
     loadCases.append( [loadsCase3, supports] )
     
+    #load case lateral load onto the truss (longitudinal boat travel direction shock load)
     loadsCase4 = np.zeros( (n,3), dtype=float )
-    loadsCase4[-3]= [0,0,-P_lat/3]
-    loadsCase4[-2]= [0,0,-P_lat/3]
-    loadsCase4[-1]= [0,0,-P_lat/3]
+    loadsCase4[-3]= [0, P_lat/3, 0]
+    loadsCase4[-2]= [0, P_lat/3, 0]
+    loadsCase4[-1]= [0 ,P_lat/3, 0]
     loadCases.append( [loadsCase4, supports] )
+
+    #load case lateral load onto the truss (longitudinal boat travel direction shock load) opposite direction
+    loadsCase5 = np.zeros( (n,3), dtype=float )
+    loadsCase5[-3]= [0, -1*P_lat/3, 0]
+    loadsCase5[-2]= [0, -1*P_lat/3, 0]
+    loadsCase5[-1]= [0 ,-1*P_lat/3, 0]
+    loadCases.append( [loadsCase5, supports] )
         
     return loadCases
 
@@ -196,8 +204,8 @@ def generateGlobalStructure(n, ho, wo, w, L, wt, ht):
     
     #first truss point
     B_z_StepSize = stepSizeVertical #[m]
-    B_z_Min = 1.2 + h_h #[m] - fixed by Rob in email
-    B_z_Max = 1.2 + h_h #[m] - fixed by Rob in email
+    B_z_Min = 1.2 #[m] - fixed by Rob in email
+    B_z_Max = 1.2 #[m] - fixed by Rob in email
     
     #disretisation is dumb, but
     C_x_StepSize = 2*s #[m]
@@ -210,8 +218,8 @@ def generateGlobalStructure(n, ho, wo, w, L, wt, ht):
     E_z_StepSize = stepSizeVertical #[m]
 
     F_z_StepSize = stepSizeVertical #[m]
-    F_z_Min = 0.4 #[m] - fixed by Rob in email
-    F_z_Max = 0.4 #[m] - fixed by Rob in email
+    F_z_Min = ht - k3*stepSizeVertical #[m] - fixed by Rob in email
+    F_z_Max = ht + k3*stepSizeVertical #[m] - fixed by Rob in email
     
     #specfic generator for the points - not labelled very well - see diagram in my notes
     H_z_StepSize = stepSizeVertical #[m]    
@@ -225,52 +233,15 @@ def generateGlobalStructure(n, ho, wo, w, L, wt, ht):
                 G_x = D_x
                 G_z = E_z
                 for F_z in listGenerator(F_z_Min, F_z_Max, F_z_StepSize):
-                    H_z_Min = F_z + minTrussDepth #[m]
-                    H_z_Max = B_z_Max + H_z_StepSize #[m]  
+                    H_z_Min = F_z + 0.4 #[m]
+                    H_z_Max = F_z + 0.4 #B_z_Max + H_z_StepSize #[m]  
                     for H_z in listGenerator(H_z_Min, H_z_Max, H_z_StepSize):                      
                         yield B_z, C_x, D_x, E_x, E_z, F_z, G_x, G_z, H_z    
 
 
 
 def createNodeandMemberObjects(n, globalStructure, w, L, wt, ht, FOS, E, S_uc, rho, P, P_lat, K=0.5):
-    '''
-    Parameters
-    ----------
-    n : TYPE
-        DESCRIPTION.
-    globalStructure : TYPE
-        DESCRIPTION.
-    w : TYPE
-        DESCRIPTION.
-    L : TYPE
-        DESCRIPTION.
-    wt : TYPE
-        DESCRIPTION.
-    ht : TYPE
-        DESCRIPTION.
-    FOS : TYPE
-        DESCRIPTION.
-    E : TYPE
-        DESCRIPTION.
-    S_uc : TYPE
-        DESCRIPTION.
-    rho : TYPE
-        DESCRIPTION.
-    P : TYPE
-        DESCRIPTION.
-    P_lat : TYPE
-        DESCRIPTION.
-    K : TYPE, optional
-        DESCRIPTION. The default is 0.5.
 
-    Returns
-    -------
-    nodes : TYPE
-        DESCRIPTION.
-    memberDict : TYPE
-        DESCRIPTION.
-
-    '''
     #using this vector, we can make the node objects
     B_z, C_x, D_x, E_x, E_z, F_z, G_x, G_z, H_z = globalStructure
     
@@ -378,30 +349,27 @@ def createNodeandMemberObjects(n, globalStructure, w, L, wt, ht, FOS, E, S_uc, r
 #Centre to Centre Length 
 L_BCB = 8.2 #[m]
 
-h_h = 0.3 #[m] - This is the freeboard of the hull full laden which will add to the height of the truss from the water
-
 #Truss width
 w = 0.5 #[m] the desired truss width
 
+#freeboard - fully laden freeboard - worst case for tender to fit under the truss
+freeboard = 0.3 #[m]
 
 #tender dimesions 
-ht = 1.0 #[m] this is the clearance desired between water surface and bottom of the truss
+ht = 1.0 - freeboard #[m] this is the clearance desired between water surface and bottom of the truss
 wt = 3.5 #[m] tender width plus a working margin
 
-#outrigger depth/2
+#outrigger depth/2 - approximation, needs confirming
 ho = 2.0/2
-#outrigger width/2
+#outrigger width/2 - approximation, needs confirming
 wo = 1.2/2
 
-radius_outrigger_stub_mast = 0.15 #[m]
 radius_hull_stub_mast = 0.15 #[m]
 
 #get the correct distance so then the truss entities can have the members go down to the correct load point.
-# L = L_BCB - radius_outrigger_stub_mast - radius_hull_stub_mast
-L = 9.0 #[m]- Set by Rob
+L = 9.0 - radius_hull_stub_mast #[m]- Set by Rob
 
-
-m_hull = 13.0 #[ton] - full laden with structural mass estimate
+m_hull = 13.0 #[ton] - full laden + a structural mass estimate
 m_outrigger = 2.0 #[ton] - max laden load in outrigger when flying a hull
 #-----------------------------------------------------------------------------
 
@@ -438,8 +406,6 @@ rho = 1800 #[kg/m^3]
 
 #-----------------------------------------------------------------------------
 #SOLVER FACTORS
-
-
 #This set the minimum distance allowable between the top and bottom - more of a manufacturing constraint
 minTrussDepth = 0.25
 #this is the discritisation verticall
@@ -459,11 +425,12 @@ sections = range(6, 8, 1)
 #I was working on a 6DOF - beam style solver in the FEM solver module and you are welcome to add this
 FOS = 2.5
 criterion = {   
-                'maxDisplacement': 0.02*L, 
+                'maxDisplacement': 0.03*L, 
                 'FOS' : FOS
             }
-k = 10  #this is the number of iterations of the d_step done for each rod when trying to find suitable members for the global geometry to resolve criteria
-k2 = 5 #this is a reduction factor for the intial diameter guess on buckling, reason is that load estimates for initialisation are not ideal, but are close
+k = 8  #this is the number of iterations of the d_step done for each rod when trying to find suitable members for the global geometry to resolve criteria
+k2 = 8 #this is a reduction factor for the intial diameter guess on buckling, reason is that load estimates for initialisation are not ideal, but are close
+k3 = 5 #just a factor to allow the numer of steps above and below tender height for point F
 
 '''For more factors relating to global geo go to geo generate function
 made more sense to keep them in there'''
